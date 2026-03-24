@@ -1,0 +1,36 @@
+classDiagram
+    class Owner {
+        +str name
+        +dict preferences
+        +add_pet(pet)
+        +set_preferences(preferences)
+    }
+
+    class Pet {
+        +str name
+        +str species
+        +list care_tasks
+        +add_task(task)
+        +get_tasks()
+    }
+
+    class CareTask {
+        +str title
+        +int duration_minutes
+        +str priority
+        +bool is_required
+        +describe()
+    }
+
+    class DailyScheduler {
+        +int available_minutes
+        +build_schedule(owner, pet)
+        +rank_tasks(tasks)
+        +explain_schedule(schedule)
+    }
+
+    Owner "1" --> "0..*" Pet : owns
+    Pet "1" --> "0..*" CareTask : needs
+    DailyScheduler ..> Owner : reads preferences
+    DailyScheduler ..> Pet : schedules care
+    DailyScheduler ..> CareTask : orders

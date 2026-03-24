@@ -4,9 +4,20 @@
 
 **a. Initial design**
 
+3 core actions include adding owner and pet info, track tasks, produce a daily plan
+
 - Briefly describe your initial UML design.
 - What classes did you include, and what responsibilities did you assign to each?
 
+My initial UML design models the core parts of the PawPal+ system: the person using the app, the pet receiving care, the tasks
+that need to be done, and the component that builds a daily plan. I kept it small on purpose so the design stays easy to
+implement and matches the project requirements.
+
+The classes I included were Owner, Pet, CareTask, and DailyScheduler. Owner is responsible for storing the pet owner’s name,
+preferences, and linked pets. Pet represents an individual pet and keeps track of its care tasks. CareTask represents a single
+care activity such as feeding or walking, including duration, priority, and whether it is required. DailyScheduler is
+responsible for the planning logic: ranking tasks, building a schedule based on available time and preferences, and explaining
+why tasks were chosen.
 **b. Design changes**
 
 - Did your design change during implementation?
