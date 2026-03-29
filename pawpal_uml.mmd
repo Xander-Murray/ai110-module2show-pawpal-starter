@@ -2,6 +2,7 @@ classDiagram
     class Owner {
         +str name
         +dict preferences
+        +list pets
         +add_pet(pet)
         +set_preferences(preferences)
     }
@@ -19,18 +20,28 @@ classDiagram
         +int duration_minutes
         +str priority
         +bool is_required
+        +str time
+        +str frequency
+        +str status
         +describe()
+        +mark_complete() CareTask | None
     }
 
     class DailyScheduler {
         +int available_minutes
-        +build_schedule(owner, pet)
-        +rank_tasks(tasks)
-        +explain_schedule(schedule)
+        +list scheduled_tasks
+        +list skipped_tasks
+        +build_schedule(owner, pet) list
+        +rank_tasks(tasks) list
+        +sort_by_time(tasks) list
+        +filter_tasks(tasks, status, pet_name) list
+        +detect_conflicts(tasks) list
+        +explain_schedule(schedule) str
     }
 
     Owner "1" --> "0..*" Pet : owns
     Pet "1" --> "0..*" CareTask : needs
     DailyScheduler ..> Owner : reads preferences
     DailyScheduler ..> Pet : schedules care
-    DailyScheduler ..> CareTask : orders
+    DailyScheduler ..> CareTask : orders and detects conflicts
+    CareTask ..> CareTask : creates recurrence on mark_complete
