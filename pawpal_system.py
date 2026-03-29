@@ -9,6 +9,8 @@ PRIORITY_SCORES = {
     "low": 1,
 }
 
+VALID_FREQUENCIES = {"once", "daily", "weekly"}
+
 
 @dataclass
 class CareTask:
@@ -18,12 +20,18 @@ class CareTask:
     duration_minutes: int
     priority: str
     is_required: bool = True
+    # Optional scheduled time in HH:MM format; empty string means unscheduled.
+    time: str = ""
+    # How often the task repeats: once, daily, or weekly.
+    frequency: str = "once"
     status: str = field(default="pending", init=False)
 
     def __post_init__(self) -> None:
         """Validates and normalizes task data after initialization."""
         self.title = self.title.strip()
         self.priority = self.priority.strip().lower()
+        self.time = self.time.strip()
+        self.frequency = self.frequency.strip().lower()
 
         if not self.title:
             raise ValueError("Task title cannot be empty.")
@@ -31,19 +39,49 @@ class CareTask:
             raise ValueError("Task duration must be greater than 0 minutes.")
         if self.priority not in PRIORITY_SCORES:
             raise ValueError("Task priority must be low, medium, or high.")
+        if self.frequency not in VALID_FREQUENCIES:
+            raise ValueError("Task frequency must be once, daily, or weekly.")
+        if self.time and not _is_valid_time(self.time):
+            raise ValueError("Task time must be in HH:MM format (e.g. 08:30).")
 
     def describe(self) -> str:
         """Returns a readable summary of the task details."""
         required_text = "required" if self.is_required else "optional"
+        time_text = f" at {self.time}" if self.time else ""
         return (
-            f"{self.title} takes {self.duration_minutes} minutes, "
+            f"{self.title} takes {self.duration_minutes} minutes{time_text}, "
             f"has {self.priority} priority, is {required_text}, "
-            f"and is currently {self.status}."
+            f"recurs {self.frequency}, and is currently {self.status}."
         )
 
-    def mark_complete(self) -> None:
-        """Marks the task as completed."""
+    def mark_complete(self) -> CareTask | None:
+        """Marks the task complete and returns a new recurring instance if applicable.
+
+        Returns a fresh CareTask for the next occurrence when frequency is
+        'daily' or 'weekly', otherwise returns None.
+        """
         self.status = "complete"
+        if self.frequency in {"daily", "weekly"}:
+            return CareTask(
+                title=self.title,
+                duration_minutes=self.duration_minutes,
+                priority=self.priority,
+                is_required=self.is_required,
+                time=self.time,
+                frequency=self.frequency,
+            )
+        return None
+
+
+def _is_valid_time(value: str) -> bool:
+    """Returns True if value is a valid HH:MM time string."""
+    parts = value.split(":")
+    if len(parts) != 2:
+        return False
+    hh, mm = parts
+    if not (hh.isdigit() and mm.isdigit()):
+        return False
+    return 0 <= int(hh) <= 23 and 0 <= int(mm) <= 59
 
 
 @dataclass
@@ -140,6 +178,60 @@ class DailyScheduler:
                 task.title.lower(),
             ),
         )
+
+    def sort_by_time(self, tasks: list[CareTask]) -> list[CareTask]:
+        """Sorts tasks chronologically by their scheduled time.
+
+        Tasks without a time value sort to the end of the list.
+        """
+        return sorted(
+            tasks,
+            key=lambda task: task.time if task.time else "99:99",
+        )
+
+    def filter_tasks(
+        self,
+        tasks: list[CareTask],
+        *,
+        status: str | None = None,
+        pet_name: str | None = None,
+        pet: Pet | None = None,
+    ) -> list[CareTask]:
+        """Returns tasks matching the given filters.
+
+        Args:
+            tasks: The task list to filter.
+            status: If provided, keep only tasks whose status matches.
+            pet_name: Unused at this level; present for API symmetry when
+                callers pass a name string (filtering by pet is done by
+                selecting the right pet's task list upstream).
+            pet: Unused at this level; same rationale as pet_name.
+        """
+        result = tasks
+        if status is not None:
+            result = [t for t in result if t.status == status]
+        return result
+
+    def detect_conflicts(self, tasks: list[CareTask]) -> list[str]:
+        """Returns warning strings for any tasks scheduled at the same time.
+
+        Only tasks with an explicit time value are checked; unscheduled tasks
+        are ignored. This is a lightweight exact-match check — it flags
+        identical HH:MM values but does not compute overlapping durations.
+        """
+        time_map: dict[str, list[str]] = {}
+        for task in tasks:
+            if task.time:
+                time_map.setdefault(task.time, []).append(task.title)
+
+        warnings = []
+        for time_value, titles in time_map.items():
+            if len(titles) > 1:
+                joined = ", ".join(f'"{t}"' for t in titles)
+                warnings.append(
+                    f"Conflict at {time_value}: {joined} are all scheduled at the same time."
+                )
+        return warnings
 
     def explain_schedule(self, schedule: list[CareTask]) -> str:
         """Explains which tasks were scheduled and which were skipped."""
